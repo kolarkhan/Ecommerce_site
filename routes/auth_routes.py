@@ -10,52 +10,55 @@ from passlib.context import CryptContext
 from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordBearer
 from core.security import get_current_user, revoke_token
-
+from models.user_models import UserRegister
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 @router.post("/register")
-async def register_user(user: dict, request: Request):
-    from models.user_models import UserRegister
-    user_data = UserRegister(**user)
-    if not validate_email_exists(user_data.email):
-        raise HTTPException(status_code=400, detail="Invalid email domain")
+async def register_user(request_data: UserRegister, request: Request):
+    email = request_data.email
+    
+    password = request_data.password
 
-    if users.find_one({"email": user_data.email}):
-        raise HTTPException(status_code=400, detail="Email already registered")
+    # Check if user already exists
+    if users.find_one({"email": email}):
+        raise HTTPException(status_code=400, detail="User already registered")
 
-    hashed_pw = hash_password(user_data.password)
+    # Hash password
+    hashed_password = pwd_context.hash(password)
+
+    # Save user to database
     users.insert_one({
-        "email": user_data.email,
-        "password": hashed_pw,
+        
+        "email": email,
+        "password": hashed_password,
         "role": "user",
-        "verified": False,
+        "is_verified": False,
         "created_at": datetime.utcnow()
     })
 
-    token = create_token(user_data.email, TOKEN_EXPIRE_HOURS)
-    verify_link = f"{request.url.scheme}://{request.client.host}:8000/auth/verify/{token}"
-    expire_time = datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS)
+    # Generate verification token and link
+    verification_token = create_token(email, 1)
+    verification_link = f"{request.url.scheme}://{request.client.host}:8000/auth/verify/{verification_token}"
+    expire_time = datetime.utcnow() + timedelta(hours=1)
     formatted_expire_time = expire_time.strftime("%Y-%m-%d %H:%M UTC")
 
+    # Send verification email
     send_email(
-        user_data.email,
-        "Verify your account",
-        f"Verify here: {verify_link}\nExpires: {formatted_expire_time}",
+        email,
+        "Verify Your Account",
+        f"Click the link to verify your account: {verification_link}\nExpires at: {formatted_expire_time}",
         f"""
-        <html>
-        <body>
-            <h3>Verify Your Email</h3>
-            <p>Click below to verify your account:</p>
-            <a href="{verify_link}" style="padding:10px 20px;background-color:#4CAF50;color:white;border-radius:5px;text-decoration:none;">Verify</a>
-            <p>This link expires at: {formatted_expire_time}</p>
-        </body>
-        </html>
+        <html><body>
+        <p>Click below to verify your email:</p>
+        <a href="{verification_link}" style="padding:10px 20px;background-color:#4CAF50;color:white;border-radius:5px;text-decoration:none;">Verify Email</a>
+        <p>This link expires at: {formatted_expire_time}</p>
+        </body></html>
         """
     )
 
-    return {"message": "User registered successfully. Check your email for verification link."}
+    return {"message": "Registration successful! Please check your email for verification link."}
 
 @router.get("/verify/{token}")
 async def verify_email(token: str):
@@ -63,7 +66,7 @@ async def verify_email(token: str):
     user = users.find_one({"email": email})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    if user["verified"]:
+    if user["is_verified"]:
         return {"message": "Account already verified."}
 
     users.update_one({"email": email}, {"$set": {"verified": True}})
