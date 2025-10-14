@@ -69,7 +69,7 @@ async def verify_email(token: str):
     if user["is_verified"]:
         return {"message": "Account already verified."}
 
-    users.update_one({"email": email}, {"$set": {"verified": True}})
+    users.update_one({"email": email}, {"$set": {"is_verified": True}})
     return {"message": "Email verified successfully!"}
 
 @router.post("/login")
