@@ -78,7 +78,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), request: Reque
     if not user or not pwd_context.verify(form_data.password, user["password"]):
         raise HTTPException(status_code=400, detail="Invalid email or password")
 
-    if not user.get("verified", False):
+    if not user.get("is_verified", False):
         token = create_token(user["email"], TOKEN_EXPIRE_HOURS)
         verify_link = f"{request.url.scheme}://{request.client.host}:8000/auth/verify/{token}"
         expire_time = datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS)
