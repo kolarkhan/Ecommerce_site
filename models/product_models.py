@@ -6,3 +6,4 @@ class ProductModel(BaseModel):
     description: Optional[str] = None
     price: float
     in_stock: int
+    category: str 

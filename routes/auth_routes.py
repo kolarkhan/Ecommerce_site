@@ -33,7 +33,7 @@ async def register_user(request_data: UserRegister, request: Request):
         
         "email": email,
         "password": hashed_password,
-        "role": "user",
+        "role": "admin",
         "is_verified": False,
         "created_at": datetime.utcnow()
     })
