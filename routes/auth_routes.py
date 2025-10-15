@@ -9,7 +9,7 @@ from core.email_utils import send_email, validate_email_exists
 from passlib.context import CryptContext
 from fastapi import APIRouter, Depends, status
 from fastapi.security import OAuth2PasswordBearer
-from core.security import get_current_user, revoke_token
+from core.security import get_current_user, revoke_token, admin_required
 from models.user_models import UserRegister
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 router = APIRouter()
@@ -33,7 +33,7 @@ async def register_user(request_data: UserRegister, request: Request):
         
         "email": email,
         "password": hashed_password,
-        "role": "admin",
+        "role": "user",
         "is_verified": False,
         "created_at": datetime.utcnow()
     })
@@ -161,6 +161,43 @@ async def reset_password(token: str, new_password: str = Form(...)):
     hashed_pw = hash_password(new_password)
     users.update_one({"email": email}, {"$set": {"password": hashed_pw}})
     return {"message": "Password reset successful!"}
+
+
+@router.get("/users")
+async def get_all_users(admin: dict = Depends(admin_required)):
+    """
+    🧑‍💼 Admin-only endpoint: View all registered users
+    """
+    user_list = []
+    for user in users.find({}, {"password": 0}):  # exclude password for security
+        user["_id"] = str(user["_id"])
+        user_list.append(user)
+
+    return {
+        "total_users": len(user_list),
+        "users": user_list
+    }
+
+
+# ---------------------- DELETE USER BY ID (Admin Only) ----------------------
+@router.delete("/users/{user_id}")
+async def delete_user(user_id: str, admin: dict = Depends(admin_required)):
+    """
+    🗑️ Admin-only endpoint: Delete a specific user by their MongoDB ObjectId
+    """
+    try:
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID")
+
+        result = users.delete_one({"_id": ObjectId(user_id)})
+
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        return {"message": f"✅ User {user_id} deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting user: {e}")
+
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)

@@ -15,4 +15,7 @@ client = MongoClient(MONGO_URI)
 db = client["userdb"]
 users = db["users"]
 products = db["products"]
+wishlist_collection = db["wishlist"]
+cart_collection = db["cart"]
+orders_collection = db["orders"]
 token_blacklist = db["token_blacklist"]
